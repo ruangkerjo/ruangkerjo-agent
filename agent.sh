@@ -10,8 +10,12 @@ arg="$2"
 invalidate_token() {
     echo "Token tidak valid, agent dihentikan"
     rm -f "$CONFIG"
-    systemctl stop ruangkerjo-agent.timer >/dev/null 2>&1
+    systemctl stop ruangkerjo-agent.timer >/dev/null 2>&1 || true
     exit 0
+}
+
+json_escape() {
+    echo "$1" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'
 }
 
 pair() {
@@ -20,11 +24,18 @@ pair() {
     hostname=$(hostname)
     os=$(grep PRETTY_NAME /etc/os-release | cut -d= -f2 | tr -d '"')
 
+    payload=$(cat <<EOF
+{
+  "token": "$arg",
+  "hostname": "$hostname",
+  "os": "$os"
+}
+EOF
+)
+
     res=$(curl -s -X POST "$API_URL/pair.php" \
-        -H "Content-Type: application/x-www-form-urlencoded" \
-        -d "token=$arg" \
-        -d "hostname=$hostname" \
-        -d "os=$os")
+        -H "Content-Type: application/json" \
+        -d "$payload")
 
     if echo "$res" | grep -q paired; then
         echo "TOKEN=$arg" > "$CONFIG"
@@ -49,14 +60,21 @@ report() {
     temp=$(awk '{print $1/1000}' /sys/class/thermal/thermal_zone0/temp 2>/dev/null || echo 0)
     load=$(cut -d' ' -f1-3 /proc/loadavg)
 
+    payload=$(cat <<EOF
+{
+  "token": "$TOKEN",
+  "cpu": "$cpu",
+  "ram": "$ram",
+  "disk": "$disk",
+  "temp": "$temp",
+  "load": "$load"
+}
+EOF
+)
+
     res=$(curl -s -X POST "$API_URL/report.php" \
-        -H "Content-Type: application/x-www-form-urlencoded" \
-        -d "token=$TOKEN" \
-        -d "cpu=$cpu" \
-        -d "ram=$ram" \
-        -d "disk=$disk" \
-        -d "temp=$temp" \
-        -d "load=$load")
+        -H "Content-Type: application/json" \
+        -d "$payload")
 
     echo "$res" | grep -q invalid_token && invalidate_token
 }
@@ -66,8 +84,8 @@ heartbeat() {
     source "$CONFIG"
 
     res=$(curl -s -X POST "$API_URL/heartbeat.php" \
-        -H "Content-Type: application/x-www-form-urlencoded" \
-        -d "token=$TOKEN")
+        -H "Content-Type: application/json" \
+        -d "{\"token\":\"$TOKEN\"}")
 
     echo "$res" | grep -q invalid_token && invalidate_token
 }
@@ -77,8 +95,8 @@ command() {
     source "$CONFIG"
 
     res=$(curl -s -X POST "$API_URL/command.php" \
-        -H "Content-Type: application/x-www-form-urlencoded" \
-        -d "token=$TOKEN")
+        -H "Content-Type: application/json" \
+        -d "{\"token\":\"$TOKEN\"}")
 
     echo "$res" | grep -q invalid_token && invalidate_token
     echo "$res" | grep -q '"id"' || exit 0
@@ -86,13 +104,20 @@ command() {
     id=$(echo "$res" | grep -o '"id":[0-9]*' | cut -d: -f2)
     cmd=$(echo "$res" | sed -n 's/.*"command":"\([^"]*\)".*/\1/p')
 
-    output=$(bash -c "$cmd" 2>&1)
+    output=$(bash -c "$cmd" 2>&1 | base64 -w0)
+
+    payload=$(cat <<EOF
+{
+  "token": "$TOKEN",
+  "command_id": "$id",
+  "output": "$output"
+}
+EOF
+)
 
     curl -s -X POST "$API_URL/command.php" \
-        -H "Content-Type: application/x-www-form-urlencoded" \
-        -d "token=$TOKEN" \
-        -d "command_id=$id" \
-        --data-urlencode "output=$output" >/dev/null
+        -H "Content-Type: application/json" \
+        -d "$payload" >/dev/null
 }
 
 case "$cmd" in
