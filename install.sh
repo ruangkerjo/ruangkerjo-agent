@@ -12,7 +12,6 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-echo "→ Menyiapkan direktori"
 mkdir -p "$INSTALL_DIR"
 
 echo "→ Download agent"
@@ -59,6 +58,5 @@ systemctl enable --now ruangkerjo-agent.timer
 
 echo ""
 echo "✔ Agent berhasil diinstall"
-echo ""
-echo "Langkah selanjutnya:"
+echo "Gunakan:"
 echo "  ruangkerjo-agent pair <TOKEN>"
