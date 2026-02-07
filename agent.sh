@@ -19,10 +19,15 @@ pair() {
   hostname=$(hostname)
   os=$(grep PRETTY_NAME /etc/os-release | cut -d= -f2 | tr -d '"')
 
+  json_data=$(jq -n \
+    --arg token "$arg" \
+    --arg host "$hostname" \
+    --arg os "$os" \
+    '{token:$token, hostname:$host, os:$os}')
+
   res=$(curl -s -X POST "$API_URL/pair.php" \
-    -d "token=$arg" \
-    -d "hostname=$hostname" \
-    -d "os=$os")
+    -H "Content-Type: application/json" \
+    -d "$json_data")
 
   if echo "$res" | grep -q paired; then
     echo "TOKEN=$arg" > "$CONFIG"
@@ -47,13 +52,18 @@ report() {
   temp=$(awk '{print $1/1000}' /sys/class/thermal/thermal_zone0/temp 2>/dev/null || echo 0)
   load=$(cut -d' ' -f1-3 /proc/loadavg)
 
+  json_data=$(jq -n \
+    --arg token "$TOKEN" \
+    --arg cpu "$cpu" \
+    --arg ram "$ram" \
+    --arg disk "$disk" \
+    --arg temp "$temp" \
+    --arg load "$load" \
+    '{token:$token, cpu:$cpu, ram:$ram, disk:$disk, temp:$temp, load:$load}')
+
   res=$(curl -s -X POST "$API_URL/report.php" \
-    -d "token=$TOKEN" \
-    -d "cpu=$cpu" \
-    -d "ram=$ram" \
-    -d "disk=$disk" \
-    -d "temp=$temp" \
-    -d "load=$load")
+    -H "Content-Type: application/json" \
+    -d "$json_data")
 
   echo "$res" | grep -q invalid_token && invalidate_token
 }
@@ -62,8 +72,11 @@ heartbeat() {
   [ ! -f "$CONFIG" ] && exit 0
   source "$CONFIG"
 
+  json_data=$(jq -n --arg token "$TOKEN" '{token:$token}')
+
   res=$(curl -s -X POST "$API_URL/heartbeat.php" \
-    -d "token=$TOKEN")
+    -H "Content-Type: application/json" \
+    -d "$json_data")
 
   echo "$res" | grep -q invalid_token && invalidate_token
 }
@@ -72,8 +85,11 @@ command() {
   [ ! -f "$CONFIG" ] && exit 0
   source "$CONFIG"
 
+  json_data=$(jq -n --arg token "$TOKEN" '{token:$token}')
+
   res=$(curl -s -X POST "$API_URL/command.php" \
-    -d "token=$TOKEN")
+    -H "Content-Type: application/json" \
+    -d "$json_data")
 
   echo "$res" | grep -q invalid_token && invalidate_token
   echo "$res" | grep -q '"id"' || exit 0
@@ -83,10 +99,15 @@ command() {
 
   output=$(bash -c "$cmd" 2>&1)
 
+  json_out=$(jq -n \
+    --arg token "$TOKEN" \
+    --arg id "$id" \
+    --arg output "$output" \
+    '{token:$token, command_id:$id, output:$output}')
+
   curl -s -X POST "$API_URL/command.php" \
-    -d "token=$TOKEN" \
-    -d "command_id=$id" \
-    --data-urlencode "output=$output" >/dev/null
+    -H "Content-Type: application/json" \
+    -d "$json_out" >/dev/null
 }
 
 case "$cmd" in
@@ -97,5 +118,8 @@ case "$cmd" in
   *)
     echo "Usage:"
     echo "  ruangkerjo-agent pair <TOKEN>"
+    echo "  ruangkerjo-agent report"
+    echo "  ruangkerjo-agent heartbeat"
+    echo "  ruangkerjo-agent command"
     ;;
 esac
