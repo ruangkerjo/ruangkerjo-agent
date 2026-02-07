@@ -3,23 +3,22 @@ set -e
 
 INSTALL_DIR="/opt/ruangkerjo-agent"
 BIN="/usr/local/bin/ruangkerjo-agent"
-GITHUB_RAW="https://raw.githubusercontent.com/ruangkerjo/ruangkerjo-agent/main"
+AGENT_URL="https://raw.githubusercontent.com/ruangkerjo/ruangkerjo-agent/main/agent.sh"
 
 echo "== RuangKerjo Agent Installer =="
 
-# check root
 [ "$EUID" -ne 0 ] && echo "Jalankan sebagai root" && exit 1
 
 mkdir -p "$INSTALL_DIR"
 
 echo "→ Download agent"
-curl -fsSL "$GITHUB_RAW/agent.sh" -o "$INSTALL_DIR/agent.sh"
+curl -fsSL "$AGENT_URL" -o "$INSTALL_DIR/agent.sh"
 chmod +x "$INSTALL_DIR/agent.sh"
 
 ln -sf "$INSTALL_DIR/agent.sh" "$BIN"
 
 ##################################
-# SYSTEMD SERVICE & TIMER
+# SYSTEMD
 ##################################
 cat > /etc/systemd/system/ruangkerjo-agent.service <<EOF
 [Unit]
