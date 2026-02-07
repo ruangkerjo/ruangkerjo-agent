@@ -1,2 +1,2 @@
 # ruangkerjo-agent
-Installasi Monitoring Server
+Pairing Monitor
